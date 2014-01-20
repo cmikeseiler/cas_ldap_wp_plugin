@@ -1,11 +1,25 @@
 <?php
 /*
 Plugin Name: CAS/LDAP with Redirect
-Version: 1.0
+Version: 1.1
 Plugin URI: http://michaelseiler.net/cas_and_ldap_with_redirect_wp_plugin
 Description: A plugin that authenticates users against a CAS server, retrieves user data from an LDAP, and redirects to any page you wish after user has authenticated.
 Author: Mike Seiler
 Author URI: http://michaelseiler.net/
+*******
+    Copyright (C) 2013  Mike Seiler 
+    http://www.linkedin.com/in/cmichaelseiler/
+    http://www.github.com/cmikeseiler
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details: <http://www.gnu.org/licenses/>
 */
 // SET IT ALL UP
 $cas_host = (string)get_option('CASLDAP_CAS_SERVER');
@@ -19,8 +33,16 @@ if( (!$cas_host == false))
 {
 	phpCAS::client(get_option('CASLDAP_CAS_VERSION'), $cas_host, $cas_port, $cas_path);
 	// FILTERS TO HOOK INTO WORDPRESS FUNCTIONS
-	add_filter('wp_authenticate', 'doCASLogin',10,2);
-	add_filter('wp_logout','doCASLogout',10,0);
+	if(($_GET) && ($_GET['auth'] == 'NOCAS') ) {
+		// do nothing, let wordpress do the work
+		// and present the form.  just capturing a use case
+	} elseif( ($_POST) && isset($_POST['wp-submit'])) {
+		// also do nothing, let wordpress do the work
+		// here just because we need to capture the scenario of logging in without CAS/LDAP
+	} else {
+		add_filter('wp_authenticate', 'doCASLogin',10,2);
+		add_filter('wp_logout','doCASLogout',10,0);
+	}
 }
 
 # CHECK TO SEE IF WE ARE GETTING AN UPDATE FROM OUR ADMIN SETTINGS PAGE
@@ -143,7 +165,7 @@ function casldap_options_page() {
     </tr>
 	<tr>
         <td align="right"><strong>Nickname</strong></td>
-        <td><input type="text" size="25" name="casldap_ldap_nickname" id="casldap_ldap_nickname" value="<?php if(isset($options_list['ldap_user_nickname'])) { echo $options_list['ldap_user_nickname'];} else { echo "";} ?>"></td>
+        <td><input type="text" size="25" name="casldap_ldap_nickname" id="casldap_ldap_nickname" value="<?php if(isset($options_list['ldap_nickname'])) { echo $options_list['ldap_nickname'];} else { echo "";} ?>"></td>
     </tr>
 	<tr>
         <td align="right"><strong>Display Name</strong></td>
@@ -234,10 +256,12 @@ function doCASLogin()
 						}
 					}
 				}
-				$new_user_data["user_pass"] = substr( hash("whirlpool", time()), 0, 8);
-				wp_insert_user($new_user_data);
-				$new_user = get_user_by('login',$username);
-                wp_set_auth_cookie($new_user->id, true);
+				if(!isset($auth)) {
+					$new_user_data["user_pass"] = substr( hash("whirlpool", time()), 0, 8);
+					wp_insert_user($new_user_data);
+					$new_user = get_user_by('login',$username);
+				}
+		        wp_set_auth_cookie($new_user->id, true);
 				wp_redirect($user_redirect);
 			}
 			else
